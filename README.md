@@ -2,56 +2,38 @@
 
 ## Project Overview
 
-This project is a production focused Multi Agent AI system built with LangGraph for travel planning. It uses a supervisor based architecture to understand user requests, divide the required tasks, and coordinate specialized agents for flights, hotels, and restaurants.
+This project is a Multi Agent AI travel planning system built with LangGraph. A Supervisor Agent analyzes the user request and coordinates specialized agents for flights, hotels, and restaurants.
 
-The system combines LangGraph orchestration, LLM based reasoning, Model Context Protocol (MCP), and SerpAPI to retrieve external travel information.
+The system combines LangGraph, MCP, LLM reasoning, external travel APIs, and AWS services to provide a complete Agentic AI workflow.
 
-Unlike a simple linear chatbot, the workflow dynamically decides which specialized agent should be executed and when enough information has been collected to generate the final response.
-
-The project focuses on modular architecture, clear separation of responsibilities, structured state management, external tool integration, and practical Agentic AI design.
+The current version uses Bedrock, AgentCore Runtime, AgentCore Gateway, ECR, and FastAPI. An earlier version of the project used Groq as the LLM provider.
 
 ## Key Features
 
-* Multi Agent travel planning workflow built with LangGraph
+* Multi Agent workflow built with LangGraph
 * Supervisor Agent for dynamic task routing
-* Specialized Flight Agent
-* Specialized Hotel Agent
-* Specialized Restaurant Agent
+* Specialized Flight, Hotel, and Restaurant agents
 * Response Agent for final answer generation
-* LLM based parameter extraction for external tools
 * Model Context Protocol (MCP) integration
 * SerpAPI integration for external travel data
-* Deterministic Python based data extraction and filtering
-* Structured state management using Pydantic
-* Asynchronous API communication using HTTPX and asyncio
-* Modular prompt architecture
-* Independent LLM wrapper
-* Test suite for agents, nodes, MCP, SerpAPI, and graph execution
+* Structured shared state using Pydantic
+* Python based data extraction and filtering
+* FastAPI API
+* Docker containerization
+* Bedrock integration
+* AgentCore Runtime and Gateway deployment
+* ECR container registry
+* Asynchronous communication
 
 ## Architecture
 
-The system uses a Multi Agent architecture orchestrated by LangGraph.
+The system is organized around a Supervisor Agent and several specialized agents. The Supervisor receives the user request, analyzes the workflow state, decides which agent should run next, and generates the instructions for that agent.
 
-Supervisor
-Receives the user request, checks the workflow state, decides which agent should run next and generates the instructions for that agent.
+The Flight, Hotel, and Restaurant agents process their assigned tasks and use MCP tools to retrieve external travel information. The Response Agent uses the collected results to generate the final response.
 
-Specialized Agents
-Flight, Hotel and Restaurant agents interpret the instructions, generate the parameters required by the MCP tools and process the returned data.
+The different components share a structured `AgentState`, which contains the user request, routing information, and processed results. This keeps the workflow modular and separates orchestration, reasoning, tool execution, and data processing.
 
-MCP Layer
-The MCP Client communicates with the MCP Server, which exposes the travel search tools and connects to SerpAPI.
-
-Data Processing
-Python extracts the relevant information from the API responses before storing it in the shared AgentState. This avoids unnecessary LLM calls and keeps the data structured.
-
-Response Agent
-Uses the collected information and the Supervisor instructions to generate the final response for the user.
-
-Shared State
-AgentState is shared across the workflow and contains the user request, routing information and processed results.
-
-LLM Layer
-Groq and LangChain ChatGroq are used for routing, reasoning and parameter generation.
+The application is containerized with Docker and deployed using ECR and AgentCore Runtime. AgentCore Gateway provides the external tool integration layer.
 
 ## System Workflow
 
@@ -64,6 +46,8 @@ Groq and LangChain ChatGroq are used for routing, reasoning and parameter genera
 ├── config.py
 ├── graph.py
 ├── main.py
+├── Dockerfile
+├── docker-compose.yml
 ├── requirements.txt
 │
 ├── src/
@@ -81,6 +65,7 @@ Groq and LangChain ChatGroq are used for routing, reasoning and parameter genera
 │   │   └── auth.py
 │   │
 │   ├── llm/
+│   │   ├── bedrock.py
 │   │   └── model.py
 │   │
 │   ├── nodes/
@@ -106,7 +91,6 @@ Groq and LangChain ChatGroq are used for routing, reasoning and parameter genera
 │       └── mcp_server.py
 │
 └── test/
-    ├── test_ddgs.py
     ├── test_graph_llm.py
     ├── test_langgraph.py
     ├── test_mcp_agent.py
@@ -121,14 +105,17 @@ Groq and LangChain ChatGroq are used for routing, reasoning and parameter genera
 * Python
 * LangGraph
 * LangChain
-* Groq
 * MCP
 * SerpAPI
 * Pydantic
-* HTTPX
-* asyncio
 * FastAPI
 * Docker
+* AWS Bedrock
+* Bedrock AgentCore Runtime
+* Bedrock AgentCore Gateway
+* Amazon ECR
+
+The previous version used Groq with `openai/gpt-oss-120b` as the LLM provider.
 
 ## API Demonstration
 
@@ -140,89 +127,58 @@ Groq and LangChain ChatGroq are used for routing, reasoning and parameter genera
 
 ## MCP Integration
 
-The project uses Model Context Protocol to separate the Agentic workflow from external travel services.
-
-The specialized agents do not communicate directly with SerpAPI. Instead, they use an MCP Client to communicate with an MCP Server that exposes the required travel search tools.
-
-This separation allows the external data sources and tools to remain independent from the reasoning and orchestration layers.
-
-The current architecture uses MCP for travel related searches including flights, hotels, and restaurants.
+MCP separates the Agentic workflow from the external travel services. The specialized agents communicate with the MCP Server through an MCP Client instead of calling SerpAPI directly. The MCP Server exposes the tools required for flight, hotel, and restaurant searches, keeping the reasoning, orchestration, and external services separated.
 
 ## Data Processing Strategy
 
-The LLM is used to understand the request and generate the parameters needed by the MCP tools.
+The LLM is responsible for understanding the request and generating the parameters required by the tools. Python then extracts and filters the relevant information returned by the external API before storing it in `AgentState`.
 
-After receiving the data from the external API, Python extracts the relevant information before storing it in the AgentState.
-
-This avoids unnecessary LLM calls, reduces token usage, and keeps the data processing simple and predictable.
+This approach reduces unnecessary LLM calls and keeps the data structured and predictable.
 
 **Flow:**
 
 External API → MCP Server → Python Extraction → AgentState
 
-## Async Architecture
+## AWS Deployment
 
-The application uses asynchronous programming for external communication.
+The current version is containerized with Docker and published to ECR. The application runs on AgentCore Runtime and uses AgentCore Gateway for tool integration.
 
-HTTP requests are performed using HTTPX AsyncClient and asynchronous MCP operations are used where applicable.
+**Deployment flow:**
 
-Synchronous operations can be isolated from the event loop when required, allowing the main asynchronous workflow to continue without unnecessary blocking.
+Local Development → Docker → ECR → AgentCore Runtime → AgentCore Gateway
+
+CloudWatch is used for runtime logs and AWS IAM provides the required permissions.
 
 ## Testing
 
-The project includes tests covering the main components of the system.
+The project includes tests for the main components, including the LangGraph workflow, LLM integration, agents, nodes, MCP Client and Server, SerpAPI integration, and graph execution.
 
-The test suite includes:
-
-* LangGraph workflow execution
-* Graph and LLM integration
-* Supervisor and node execution
-* MCP Server
-* MCP Client
-* MCP Agent integration
-* SerpAPI integration
-* External search testing
-
-These tests are used to validate the different layers independently during development.
+The tests were used during development to validate the different layers independently.
 
 ## Key Design Decisions
 
-* Explicit workflow orchestration using LangGraph
-* Supervisor based dynamic routing
-* Independent specialized agents for flights, hotels, and restaurants
-* Shared AgentState across the workflow
-* Structured data validation using Pydantic
-* MCP used as the external tool integration layer
-* External API communication separated from Agentic reasoning
-* Deterministic Python data extraction instead of an additional LLM
-* Reduced data stored in the shared state
-* Independent prompts for each agent
-* Asynchronous external communication
-* Modular architecture for future expansion
+The architecture focuses on clear separation of responsibilities. LangGraph handles workflow orchestration and routing, while specialized agents handle domain specific tasks. MCP provides the external tool layer, and Python handles deterministic data extraction before results are stored in the shared state.
+
+The system also uses independent prompts, Pydantic models for structured data, asynchronous communication, and Docker based deployment.
 
 ## Future Extensions
 
-The architecture has been designed to support future Agentic capabilities, including:
-
-* Additional travel agents
-* More external MCP tools
-* Memory integration
-* Human in the loop workflows
-* Travel preference management
-* Additional external travel providers
-* More advanced planning capabilities
+The architecture can be extended with additional travel agents and MCP tools, memory integration, human in the loop workflows, travel preferences, additional travel providers, and more advanced planning capabilities.
 
 ## Status
 
-Production system available for live demonstration during interviews.
+Current version deployed using Bedrock AgentCore Runtime, AgentCore Gateway, ECR, and FastAPI.
+
+Available for live demonstration during interviews.
 
 ## Repository Note
 
 Source code is private due to infrastructure and deployment constraints.
+
 Full technical walkthrough and live demo are available upon request.
 
 ## Author
 
-Leonardo Darrain Rocha  
-Senior Software Engineer  
-https://www.linkedin.com/in/leonardo-darrain-rocha-a6062354/  
+Leonardo Darrain Rocha
+Senior Software Engineer
+https://www.linkedin.com/in/leonardodarrainrocha-a6062354/
